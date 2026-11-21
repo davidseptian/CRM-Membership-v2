@@ -141,6 +141,7 @@ tr.rw{cursor:pointer}tr.rw:hover td{background:#1f1e1c}
   <button data-t="dash" class="on">Ringkasan</button>
   <button data-t="cust">Customer</button>
   <button data-t="fu">Follow-up</button>
+  <button data-t="sales">Penjualan CRM</button>
   <button data-t="tren">Tren Produk</button>
   <button data-t="mem">Membership</button>
   <button data-t="ins">Insentif Admin</button>
@@ -170,6 +171,13 @@ tr.rw{cursor:pointer}tr.rw:hover td{background:#1f1e1c}
 
 <section class="tab" id="t-fu"><div class="card" id="c-fu"></div></section>
 
+<section class="tab" id="t-sales">
+  <div class="bar"><label class="sub">Bulan</label><select id="sM"></select><label class="sub">PIC</label><select id="sP"><option value="">Semua PIC</option></select></div>
+  <div class="kpis" id="kpisS"></div>
+  <div class="grid2"><div class="card" id="c-spic"></div><div class="card" id="c-sday"></div></div>
+  <div class="card" style="margin-top:14px" id="c-slist"></div>
+</section>
+
 <section class="tab" id="t-tren">
   <div class="kpis" id="kpisT"></div>
   <div class="card" style="margin-top:14px" id="c-gap"></div>
@@ -186,7 +194,7 @@ tr.rw{cursor:pointer}tr.rw:hover td{background:#1f1e1c}
 <section class="tab" id="t-ins">
   <div id="insWarn"></div>
   <div class="kpis" id="kpisI"></div>
-  <div class="bar"><select id="fIS"><option value="">Semua status</option><option>Belum dibayar</option><option>Dibayar</option></select><select id="fIP"><option value="">Semua PIC</option></select><button class="btn gold" id="payI">Tandai terpilih dibayar</button></div>
+  <div class="bar"><select id="fIM"><option value="">Semua bulan</option></select><select id="fIS"><option value="">Semua status</option><option>Belum dibayar</option><option>Dibayar</option></select><select id="fIP"><option value="">Semua PIC</option></select><button class="btn gold" id="payI">Tandai terpilih dibayar</button></div>
   <div class="tw" style="max-height:60vh"><table><thead><tr><th></th><th>ID</th><th>Tanggal</th><th>PIC</th><th>Customer</th><th>Jenis</th><th>Dasar</th><th>Jumlah</th><th>Status</th><th>Dibayar</th></tr></thead><tbody id="tbI"></tbody></table></div>
   <div class="card" style="margin-top:14px" id="c-aturan"></div>
 </section>
@@ -258,6 +266,24 @@ function renderTable(){
 }
 /* ---- follow-up ---- */
 function rFU(){const l=fuDue(FUW===9999);$('#c-fu').innerHTML=`<h3>Follow-up jatuh tempo</h3><div class="d">${l.length} customer, jadwal terbaru dulu</div><select id="fuW"><option value="14" ${FUW===14?'selected':''}>14 hari terakhir</option><option value="60" ${FUW===60?'selected':''}>60 hari terakhir</option><option value="9999" ${FUW===9999?'selected':''}>Semua (termasuk yang basi)</option></select>`+(l.length?`<div class="tw"><table><thead><tr><th>Jadwal</th><th>Customer</th><th>WA</th><th>Status</th><th>Interest</th><th>Terakhir</th></tr></thead><tbody>${l.slice(0,300).map(c=>{const a=(aktBy[c.id]||[]).slice().sort((x,y)=>x[1]<y[1]?1:-1)[0];return`<tr class="rw" data-id="${esc(c.id)}"><td>${esc(c.fu)}</td><td>${esc(c.nama)}</td><td>${c.wa?`<a style="color:var(--gold-light)" target="_blank" rel="noopener" href="https://wa.me/${esc(c.wa)}" onclick="event.stopPropagation()">${esc(c.wa)}</a>`:'—'}</td><td>${esc(c.pros)}</td><td style="white-space:normal;max-width:240px">${esc(c.int)}</td><td style="white-space:normal;max-width:240px">${a?esc(a[1]+' · '+a[3]+' · '+(a[6]||'')):'—'}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">Tidak ada follow-up tertunda</div>');$$('#c-fu tr.rw').forEach(t=>t.onclick=()=>openC(t.dataset.id));$('#fuW').onchange=e=>{FUW=+e.target.value;rFU()}}
+/* ---- penjualan CRM per bulan ---- */
+function bulanList(){const set=new Set([(DATA.hari||'').slice(0,7)]);DATA.aktivitas.forEach(a=>{if(a[3]==='Closing'&&a[9]>0)set.add(a[1].slice(0,7))});DATA.insentif.forEach(i=>set.add(i[1].slice(0,7)));return[...set].filter(x=>x).sort().reverse()}
+function fillBulan(){const l=bulanList(),cur=(DATA.hari||'').slice(0,7);const sm=$('#sM'),old=sm.value;sm.innerHTML=l.map(m=>`<option value="${m}">${m}${m===cur?' (bulan ini)':''}</option>`).join('');sm.value=l.includes(old)?old:cur;
+  const im=$('#fIM'),o2=im.value;im.innerHTML='<option value="">Semua bulan</option>'+l.map(m=>`<option value="${m}">${m}</option>`).join('');im.value=l.includes(o2)?o2:cur||'';
+  const sp=$('#sP'),o3=sp.value,ps=[...new Set(DATA.aktivitas.filter(a=>a[3]==='Closing').map(a=>a[12]).concat(DATA.insentif.map(i=>i[2])).filter(Boolean))].sort();sp.innerHTML='<option value="">Semua PIC</option>'+ps.map(x=>`<option>${esc(x)}</option>`).join('');sp.value=ps.includes(o3)?o3:''}
+function rSales(){
+  const m=$('#sM').value,pc=$('#sP').value;const cl=DATA.aktivitas.filter(a=>a[3]==='Closing'&&a[9]>0&&a[1].slice(0,7)===m&&(!pc||a[12]===pc));
+  const insBy={};DATA.insentif.forEach(i=>{if(i[9]!=='Batal')(insBy[i[4]]=insBy[i[4]]||[]).push(i)});
+  const insM=DATA.insentif.filter(i=>i[1].slice(0,7)===m&&i[9]!=='Batal'&&(!pc||i[2]===pc));
+  const tot=cl.reduce((s,a)=>s+a[9],0),ti=insM.reduce((s,i)=>s+i[8],0),bd=insM.filter(i=>i[9]==='Belum dibayar').reduce((s,i)=>s+i[8],0),by=ti-bd;
+  $('#kpisS').innerHTML=kpi('Penjualan CRM',rp(tot),cl.length+' closing')+kpi('Rata-rata per closing',cl.length?rp(tot/cl.length):'—','')+kpi('Insentif bulan ini',rp(ti),insM.length+' baris')+kpi('Belum dibayar',rp(bd),'')+kpi('Sudah dibayar',rp(by),'');
+  const per={};cl.forEach(a=>{const k=a[12]||'(tanpa PIC)';const o=per[k]||(per[k]={n:0,v:0,i:0});o.n++;o.v+=a[9]});insM.forEach(i=>{const k=i[2]||'(tanpa PIC)';const o=per[k]||(per[k]={n:0,v:0,i:0});o.i+=i[8]});
+  const rows=Object.entries(per).sort((a,b)=>b[1].v-a[1].v);
+  $('#c-spic').innerHTML='<h3>Per admin (PIC)</h3><div class="d">Penjualan closing dan insentif yang diterima bulan '+esc(m)+'</div>'+(rows.length?`<div class="tw"><table><thead><tr><th>PIC</th><th>Closing</th><th>Penjualan</th><th>Insentif</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r[0])}</td><td>${r[1].n}</td><td>${rp(r[1].v)}</td><td><b>${rp(r[1].i)}</b></td></tr>`).join('')}<tr class="tot"><td>Total</td><td>${cl.length}</td><td>${rp(tot)}</td><td>${rp(ti)}</td></tr></tbody></table></div>`:'<div class="empty">Belum ada closing bulan ini</div>');
+  const dy={};cl.forEach(a=>dy[a[1]]=(dy[a[1]]||0)+a[9]);
+  $('#c-sday').innerHTML='<h3>Penjualan per hari</h3><div class="d">Total closing tiap tanggal</div>'+hbars(Object.entries(dy).sort((a,b)=>a[0]<b[0]?-1:1),jt);
+  $('#c-slist').innerHTML='<h3>Daftar closing</h3><div class="d">Closing lama (sebelum CRM v2) tidak punya insentif otomatis</div>'+(cl.length?`<div class="tw" style="max-height:50vh"><table><thead><tr><th>Tanggal</th><th>Customer</th><th>PIC</th><th>Channel</th><th>Produk</th><th>Nilai</th><th>Insentif</th></tr></thead><tbody>${cl.slice().sort((a,b)=>a[1]<b[1]?1:-1).slice(0,400).map(a=>{const c=byId[a[2]],ii=(insBy[a[11]]||[]).reduce((s,i)=>s+i[8],0);return`<tr class="rw" data-id="${esc(a[2])}"><td>${esc(a[1])}</td><td>${esc(c?c.nama:a[2])}</td><td>${esc(a[12])}</td><td>${esc(a[10])}</td><td style="white-space:normal;max-width:260px">${esc(a[4])}</td><td>${rp(a[9])}</td><td>${a[11]?rp(ii):'—'}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">Belum ada closing</div>');
+  $$('#c-slist tr.rw').forEach(t=>t.onclick=()=>openC(t.dataset.id))}
 /* ---- tren produk ---- */
 function minat(){const et=DATA.dibeli.etalase,cnt={};et.forEach(e=>cnt[e]=0);const txt=[];C.forEach(c=>{if(c.int)txt.push(c.int)});DATA.aktivitas.forEach(a=>{if(a[4])txt.push(a[4])});
   txt.forEach(t=>{const l=t.toLowerCase();et.forEach(e=>{if(e!=='Lainnya'&&l.includes(e.toLowerCase()))cnt[e]++})});return cnt}
@@ -287,7 +313,7 @@ function rIns(){
   $('#insWarn').innerHTML=act.length?'':'<div class="note"><b>Aturan insentif belum diisi.</b> Isi tab Aturan_Insentif di Master 3 (kolom Nilai, lalu Aktif = Ya). Selama kosong, closing tetap tercatat tetapi insentif belum dibuat.</div>';
   const bd=I.filter(i=>i[9]==='Belum dibayar').reduce((s,i)=>s+i[8],0),dy=I.filter(i=>i[9]==='Dibayar').reduce((s,i)=>s+i[8],0);
   $('#kpisI').innerHTML=kpi('Belum dibayar',rp(bd),I.filter(i=>i[9]==='Belum dibayar').length+' baris')+kpi('Sudah dibayar',rp(dy),'')+kpi('Total insentif',rp(bd+dy),'');
-  const s=$('#fIS').value,p=$('#fIP').value,l=I.filter(i=>(!s||i[9]===s)&&(!p||i[2]===p)).sort((a,b)=>a[1]<b[1]?1:-1);
+  const s=$('#fIS').value,p=$('#fIP').value,mo=$('#fIM').value,l=I.filter(i=>(!s||i[9]===s)&&(!p||i[2]===p)&&(!mo||i[1].slice(0,7)===mo)).sort((a,b)=>a[1]<b[1]?1:-1);
   $('#tbI').innerHTML=l.slice(0,500).map(i=>`<tr><td>${i[9]==='Belum dibayar'?`<input type="checkbox" class="ck" value="${esc(i[0])}">`:''}</td><td>${esc(i[0])}</td><td>${esc(i[1])}</td><td>${esc(i[2])}</td><td>${esc(i[3])}</td><td>${esc(i[5])}</td><td>${rp(i[6])}</td><td>${rp(i[8])}</td><td><span class="st ${i[9]==='Dibayar'?'ok':'w'}">${esc(i[9])}</span></td><td>${esc(i[10])||'—'}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">Belum ada insentif</td></tr>';
   $('#c-aturan').innerHTML='<h3>Aturan insentif aktif</h3><div class="d">Diatur di Master 3 › Aturan_Insentif</div>'+(DATA.aturan_insentif.length?`<div class="tw"><table><thead><tr><th>ID</th><th>Jenis</th><th>Basis</th><th>Nilai</th><th>Min order</th><th>Aktif</th></tr></thead><tbody>${DATA.aturan_insentif.map(a=>`<tr><td>${esc(a[0])}</td><td>${esc(a[1])}</td><td>${esc(a[2])}</td><td>${a[3]==null?'<i>kosong</i>':a[3]}</td><td>${rp(a[4])}</td><td>${esc(a[5])}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">Belum ada aturan</div>');
 }
@@ -335,10 +361,10 @@ function formTukar(kode){const m=memBy[kode];if(!m)return;REQ=REQ||uid();const o
   modal(hd('Tukar poin · '+esc(m[2]))+`<div class="sub">Saldo ${m[8]} poin</div><div class="fr"><div class="full"><label>Hadiah</label><select id="a1">${opts.length?opts.map(h=>`<option value="${h[0]}|${esc(h[1])}">${h[0]} poin · ${esc(h[1])}</option>`).join(''):'<option value="">Saldo belum cukup</option>'}</select></div></div><div id="fm" class="msg"></div><div class="bar"><button class="btn gold" id="sv">Tukar</button></div>`);
   $('#sv').onclick=e=>{const v=$('#a1').value;if(!v)return;const i=v.indexOf('|');kirim(e.target,'tukar_poin',{kode_member:kode,poin:+v.slice(0,i),hadiah:v.slice(i+1),req:REQ},()=>{REQ=''})}}
 /* ---- koneksi ---- */
-function render(){rDash();renderTable();rFU();rTren();rMem();rIns();rMP();$('#foot').textContent=DATA.hari?'Data per '+DATA.hari+' · '+C.length+' customer, '+DATA.aktivitas.length+' aktivitas':'Belum ada data: klik Sumber data lalu isi URL dan kunci.'}
+function render(){fillBulan();rSales();rDash();renderTable();rFU();rTren();rMem();rIns();rMP();$('#foot').textContent=DATA.hari?'Data per '+DATA.hari+' · '+C.length+' customer, '+DATA.aktivitas.length+' aktivitas':'Belum ada data: klik Sumber data lalu isi URL dan kunci.'}
 $$('#tabs button').forEach(b=>b.onclick=()=>{$$('#tabs button').forEach(x=>x.classList.toggle('on',x===b));$$('section.tab').forEach(s=>s.classList.toggle('on',s.id==='t-'+b.dataset.t))});
 ['fQ','fT','fP','fM','fR'].forEach(i=>{$('#'+i).addEventListener('input',()=>{LIM=200;renderTable()});$('#'+i).addEventListener('change',()=>{LIM=200;renderTable()})});
-$('#more').onclick=()=>{LIM+=300;renderTable()};$('#fMQ').oninput=rMem;$('#fIS').onchange=rIns;$('#fIP').onchange=rIns;$('#fMPmin').onchange=rMP;
+$('#more').onclick=()=>{LIM+=300;renderTable()};$('#fMQ').oninput=rMem;$('#fIS').onchange=rIns;$('#fIM').onchange=rIns;$('#sM').onchange=rSales;$('#sP').onchange=rSales;$('#fIP').onchange=rIns;$('#fMPmin').onchange=rMP;
 $('#addC').onclick=formCust;$('#pClose').onclick=()=>$('#panel').classList.remove('on');$('#mod').onclick=e=>{if(e.target.id==='mod')closeMod()};
 $('#pic').onchange=e=>{try{localStorage.setItem('hypotech_crm_pic',e.target.value)}catch(x){}};
 $('#payI').onclick=async e=>{const ids=$$('#tbI .ck:checked').map(x=>x.value);if(!ids.length)return;if(!confirm('Tandai '+ids.length+' insentif sebagai dibayar?'))return;try{await post('bayar_insentif',{ids});await muat()}catch(x){alert(x.message)}};
